@@ -80,3 +80,8 @@ browser smoke 16/16, hardening 30/30, design 8/8, visual 39/39, UX 46/46.
 The final release gate independently installs/builds/starts an extracted source ZIP;
 its generated report records the exact hash and status. CI status is read from GitHub,
 never inferred from local results. See the companion verification documents.
+
+GitHub run 38973628633 completed successfully on implementation 11573ee: all 5 jobs,
+251 Python tests without skips, browser checks and secure extraction. The independent
+local source archive/extraction also passed Chromium smoke. PR 1 is open for review;
+main was not changed. The follow-up evidence commit changes documentation only.

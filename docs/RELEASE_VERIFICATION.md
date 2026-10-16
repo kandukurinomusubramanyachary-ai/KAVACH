@@ -40,3 +40,16 @@ paths, actual OS symlinks on Linux, archive symlinks on all platforms, known sec
 source/compiled assets, private-key markers, deterministic builds and hash tampering.
 Secret detection is scoped to known sources and private-key markers, not a universal
 secret detector.
+
+## Executed outcome
+
+PASS: the independent local extraction installed a fresh Python environment and
+locked npm dependencies, passed editor/CSV/build, 31 security and 9 acceptance cases,
+served HTML/fonts/API and passed 16/16 Chromium smoke checks. The generated JSON
+report's archive hash was compared to the delivered ZIP bytes.
+
+The actual [successful GitHub run](https://github.com/kandukurinomusubramanyachary-ai/KAVACH/actions/runs/38973628633)
+also built, independently verified and exercised a clean extraction on Ubuntu. CI
+artifacts contain the source ZIP and machine-readable verification result. Archive
+hashes can differ between Windows CRLF and Linux LF checkouts; every distributed
+archive is verified against its own exact manifest. No generic workspace ZIP is used.

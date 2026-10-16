@@ -19,8 +19,8 @@ No old PASS result was copied into these figures.
 | UX / judge journey | 46/46 passed | reports/final/ux-results.json |
 | Offline fallback | Eight JS scenarios passed; zero runtime errors/external requests | reports/offline-prototype-tests.json |
 | Exact release packaging / hash and secret checks | PASS on rebuilt candidate | release CLI output; final artifact report |
-| Clean-extraction final artifact | See generated clean-extraction.json for the exact ZIP hash and executed result | independent scripts/verify_release.py --browser |
-| GitHub Actions | See CI_VERIFICATION.md; local success does not establish remote CI | actual GitHub run/jobs required |
+| Clean-extraction artifact | PASS: fresh installs/build, 31 cases, 9 acceptance, HTML/font/API and real Chromium smoke | clean-extraction.json records exact ZIP hash |
+| GitHub Actions | PASS: all 5 jobs; Linux Python 251 passed / 0 skipped in 8.18 s | [Actual successful run](https://github.com/kandukurinomusubramanyachary-ai/KAVACH/actions/runs/38973628633) |
 
 The 2 skips are POSIX permission enforcement (not applicable on Windows) and OS
 symlink creation (WinError 1314, missing account privilege). Neither is a pass.
@@ -69,3 +69,9 @@ project. Every executed engine/server used disposable test data. Signing keys,
 protected state, replay records and historical audit data from a presenter were not
 accessed, reset or rotated. Release defenses detected synthetic secret canaries in
 negative tests; known-secret scanning is not a universal detector.
+
+GitHub's successful Linux run executes both checks skipped on this Windows account.
+No release-blocking defect remains in the tested scope. These are simulator results,
+not spacecraft certification or a comprehensive independent security audit. Later
+changes in the evidence commit are documentation only; current-head CI is visible on
+PR 1 and reruns the same real gates.
