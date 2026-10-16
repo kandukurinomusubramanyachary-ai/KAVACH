@@ -7,7 +7,7 @@ import os
 
 def main():
     ROOT=Path(__file__).resolve().parent.parent
-    source=(ROOT/'web/src/main.tsx').read_text()
+    source=(ROOT/'web/src/main.tsx').read_text(encoding='utf-8')
     replacements={
      "import './styles.css';":"import '../web/src/styles.css';",
      "['commit','State commit','Atomic execution & audit record',CheckCheck]":"['commit','Apply preview state','In-memory update; no database',CheckCheck]",
@@ -34,16 +34,20 @@ def main():
      'kavach-policy/1.0':'browser-prototype/1.0',
      'Policy v1.0':'Browser-only policy',
      'Signed by local fixture issuer':'Signed by browser fixture issuer',
-     'The fixture issuer is a deliberately privileged test harness. It can sign unauthorised fixtures so receiver policy is testable. Passing these cases does not establish production security.':'This eight-case suite runs the JavaScript browser validator only. It does not run the 29-case Python suite, SQLite transactions, restart, concurrency, or database-failure tests. Preview keys are ephemeral browser keys.',
+     'The fixture issuer is a deliberately privileged test harness. It can sign unauthorised fixtures so receiver policy is testable. Passing these cases does not establish production security.':'This eight-case suite runs the JavaScript browser validator only. It does not run the 31-case Python suite, SQLite transactions, restart, concurrency, or database-failure tests. Preview keys are ephemeral browser keys.',
      'LOCAL SATELLITE SECURITY SIMULATOR':'BROWSER-ONLY INTERACTIVE PROTOTYPE',
     }
     for a,b in replacements.items():source=source.replace(a,b)
     source=re.sub(r"from './(api|editor|types|components/[^']+)'",r"from '../web/src/\1'",source)
+    source=re.sub(r"import './([^']+)'",r"import '../web/src/\1'",source)
+    source=re.sub(r"from './([^']+)'",r"from '../web/src/\1'",source)
+    source=source.replace('<HelpFAQ/>','<HelpFAQ prototypeOnly/>')
     source=source.replace('<ValidationPipeline result=', '<ValidationPipeline prototypeOnly result=')
-    (ROOT/'preview/offline-main.tsx').write_text(source)
+    (ROOT/'preview/offline-main.tsx').write_text(source,encoding='utf-8')
     folder=ROOT/'.arena/offline';folder.mkdir(parents=True,exist_ok=True)
-    subprocess.run([str(ROOT/'node_modules/.bin/esbuild'),str(ROOT/'preview/offline-main.tsx'),'--bundle','--format=iife','--target=es2022','--minify','--external:/fonts/*','--outfile='+str(folder/'app.js')],cwd=ROOT,check=True)
-    css=(folder/'app.css').read_text()
+    subprocess.run(['node','--input-type=module','-e',
+        "import {build} from 'esbuild'; await build({entryPoints:['preview/offline-main.tsx'],bundle:true,format:'iife',target:'es2022',minify:true,external:['/fonts/*'],outfile:'.arena/offline/app.js'});"],cwd=ROOT,check=True)
+    css=(folder/'app.css').read_text(encoding='utf-8')
     def embed_font(match):
      name=match.group(1);data=(ROOT/'web/public/fonts'/name).read_bytes()
      mime='font/woff2' if name.endswith('.woff2') else 'font/ttf'
@@ -52,12 +56,12 @@ def main():
     extra='''
     .prototype-banner{position:relative;z-index:71;background:#252016;color:#e5c291;border-bottom:1px solid #6c5030;padding:12px 24px;display:flex;gap:13px;align-items:center;font:11px/1.7 system-ui,sans-serif}.prototype-banner strong{font-size:10px;letter-spacing:.8px;white-space:nowrap;color:#ffc793}.prototype-banner span{color:#c7b395}.prototype-banner i{font-style:normal;color:#f0d4aa}.by-vyom{color:#bc956f}.prototype-banner button{background:#453420;border:1px solid #715335;color:#efd4af;border-radius:4px;padding:7px 10px;font:10px system-ui;white-space:nowrap;margin-left:auto}.prototype-banner button:hover{background:#594029}.local-label{color:#c4b196}@media(max-width:720px){.prototype-banner{padding:12px 17px;gap:7px;display:block;font-size:9px}.prototype-banner strong{display:block;font-size:9px;margin-bottom:3px}.prototype-banner button{display:none}}
     '''
-    adapter=(ROOT/'preview/offline-adapter.js').read_text()
-    app=(folder/'app.js').read_text()
+    adapter=(ROOT/'preview/offline-adapter.js').read_text(encoding='utf-8')
+    app=(folder/'app.js').read_text(encoding='utf-8')
     script=(adapter+'\n'+app).replace('</script','<\\/script')
     html='''<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#0b0f15"><title>Kavach · Interactive browser prototype</title><style>'''+css+extra+'''</style></head><body><div class="prototype-banner"><strong>INTERACTIVE PROTOTYPE · BROWSER ONLY</strong><span>Works without the preview server. <i>Not the Python receiver.</i> Synthetic keys and records stay in memory; reopening resets this demo.</span><button onclick="document.querySelector('.help-button')?.click()">What is different?</button></div><div id="root"></div><script>'''+script+'''</script></body></html>'''
     output=Path(os.environ.get('KAVACH_OFFLINE_OUTPUT',str(ROOT/'preview/Kavach-interactive-prototype.html')))
-    output.write_text(html)
+    output.write_text(html,encoding='utf-8')
     print(f'{output}: {output.stat().st_size:,} bytes; self-contained, no external resources')
 
 if __name__=='__main__': main()

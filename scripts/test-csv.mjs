@@ -1,4 +1,4 @@
-import {spawnSync} from 'node:child_process';
+import {build} from 'esbuild';
 import {mkdirSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
@@ -6,9 +6,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 mkdirSync('.arena',{recursive:true});
-// Compile the real shipped module, exactly like the editor gate does.
-const compiled=spawnSync('node_modules/esbuild/bin/esbuild',['web/src/csv.ts','--format=esm','--platform=node','--outfile=.arena/csv-under-test.mjs'],{encoding:'utf8'});
-if(compiled.status!==0)throw Error(compiled.stderr);
+// Resolve the platform executable through esbuild's supported API.
+await build({entryPoints:['web/src/csv.ts'],format:'esm',platform:'node',outfile:'.arena/csv-under-test.mjs'});
 const {csvCell,toCsv}=await import(pathToFileURL(path.resolve('.arena/csv-under-test.mjs')).href);
 
 test('plain values pass through unchanged',()=>{
@@ -65,4 +64,14 @@ test('a value containing a comma stays inside one quoted cell',()=>{
  // A reader that honours quotes must recover the original two cells.
  const cells=[...csv.split('\r\n')[1].matchAll(/"((?:[^"]|"")*)"|([^,]+)/g)].map(m=>m[1]!==undefined?m[1].replaceAll('""','"'):m[2]);
  assert.deepEqual(cells,['A,B','x']);
+});
+
+test('untrusted formula prefixes are exported as literal spreadsheet text',()=>{
+ for(const value of ['=1+1','+SUM(A1)','-cmd','@SUM(A1)','  =1','\t=1','\r=1']){
+  assert.ok(csvCell(value).includes("'"),'Formula prefix must be escaped');
+ }
+});
+test('numeric negative measurements retain their numeric representation',()=>{
+ assert.equal(csvCell(-12),'-12');
+ assert.equal(csvCell('operator-01'),'operator-01');
 });

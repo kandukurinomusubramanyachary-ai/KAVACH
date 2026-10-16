@@ -26,7 +26,7 @@ def test_release_is_deterministic_and_has_no_runtime_material(source,tmp_path_fa
     with zipfile.ZipFile(a) as z:
         assert set(z.namelist())=={'kavach/README.md','kavach/RELEASE_MANIFEST.json'}
 
-@pytest.mark.parametrize('name',['data/sender-secrets.json','data/kavach.sqlite3','x.sqlite3-journal','x.db','x.sqlite-wal','x.sqlite3-shm','.env','.env.local','node_modules/a.js','.venv/a','../secret','/tmp/x','x\\secret','some/private.key','credentials/secret','cache.tmp','archive.zip'])
+@pytest.mark.parametrize('name',['data/sender-secrets.json','data/kavach.sqlite3','x.sqlite3-journal','x.db','x.sqlite-wal','x.sqlite3-shm','.env','.env.local','node_modules/a.js','.venv/a','../secret','/tmp/x','x\\secret','some/private.key','credentials/secret','cache.tmp','archive.zip','C:/secrets','folder/file:stream','README.','folder /file','NUL.txt','COM1','x/.. ','bad\x00name'])
 def test_forbidden_paths_are_rejected_even_if_allowlisted(source,name,tmp_path_factory):
     (source/'release-files.json').write_text(json.dumps({'files':[name]}))
     with pytest.raises(ReleaseError):build_release(source,tmp_path_factory.mktemp('bad')/'bad.zip')
@@ -54,13 +54,61 @@ def test_independent_zip_validation_rejects_appended_forbidden_entry(source,tmp_
     with pytest.raises(ReleaseError):validate_archive(archive,source)
 
 def test_symlink_cannot_smuggle_runtime_content(source,tmp_path_factory):
-    (source/'README.md').unlink();(source/'README.md').symlink_to(source/'data/sender-secrets.json')
+    (source/'README.md').unlink()
+    try:
+        (source/'README.md').symlink_to(source/'data/sender-secrets.json')
+    except OSError as exc:
+        if getattr(exc,'winerror',None)==1314:
+            pytest.skip('Windows lacks symlink creation privilege; real symlink gate runs on Linux CI.')
+        raise
     with pytest.raises(ReleaseError,match='unsafe'):build_release(source,tmp_path_factory.mktemp('leak')/'leak.zip')
 
 def test_real_submission_archive_when_built():
     root=Path(__file__).resolve().parents[1]
-    archive=root.parent/'Kavach-hardened-release.zip'
-    if not archive.exists():
-        # Build/validate of synthetic fixtures above is mandatory. This gate is explicitly pending, never passed silently.
-        pytest.skip('Actual release archive is not built yet; run scripts/release.py then rerun this gate.')
-    assert validate_archive(archive,root)['status']=='PASS'
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix='kavach-release-gate-') as directory:
+        archive=Path(directory)/'release.zip'
+        build_release(root,archive)
+        assert validate_archive(archive,root)['status']=='PASS'
+
+def test_new_source_cannot_be_omitted(source,tmp_path_factory):
+    component=source/'web/src/components/NewPanel.tsx'
+    component.parent.mkdir(parents=True)
+    component.write_text('export const Panel = () => null;')
+    with pytest.raises(ReleaseError,match='Required sources omitted'):
+        build_release(source,tmp_path_factory.mktemp('missing')/'bad.zip')
+
+def test_missing_allowlisted_source_fails(source,tmp_path_factory):
+    (source/'README.md').unlink()
+    with pytest.raises(ReleaseError,match='Missing or unsafe'):
+        build_release(source,tmp_path_factory.mktemp('missing')/'bad.zip')
+
+def test_generated_report_is_refused(source,tmp_path_factory):
+    (source/'release-files.json').write_text(json.dumps({'files':['reports/result.json']}))
+    with pytest.raises(ReleaseError,match='Generated reports'):
+        build_release(source,tmp_path_factory.mktemp('report')/'bad.zip')
+
+def test_independent_validation_detects_hash_tampering(source,tmp_path_factory):
+    archive=tmp_path_factory.mktemp('hash')/'bad.zip'
+    build_release(source,archive)
+    with zipfile.ZipFile(archive) as original:
+        entries=[(entry,original.read(entry)) for entry in original.infolist()]
+    with zipfile.ZipFile(archive,'w') as changed:
+        for entry,content in entries:
+            changed.writestr(entry,b'changed' if entry.filename.endswith('README.md') else content)
+    with pytest.raises(ReleaseError,match='hash mismatch'):
+        validate_archive(archive,source)
+
+def test_archive_symlink_is_rejected_without_os_privileges(source,tmp_path_factory):
+    import stat
+    archive=tmp_path_factory.mktemp('symlink-zip')/'bad.zip'
+    build_release(source,archive)
+    with zipfile.ZipFile(archive) as original:
+        entries=[(entry,original.read(entry)) for entry in original.infolist()]
+    with zipfile.ZipFile(archive,'w') as changed:
+        for entry,content in entries:
+            if entry.filename.endswith('README.md'):
+                entry.external_attr=(stat.S_IFLNK | 0o777)<<16
+            changed.writestr(entry,content)
+    with pytest.raises(ReleaseError,match='symlink'):
+        validate_archive(archive,source)

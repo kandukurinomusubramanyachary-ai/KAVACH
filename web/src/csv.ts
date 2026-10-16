@@ -5,7 +5,10 @@
 /** Quote a single cell. Null/undefined become empty, never the string "null". */
 export function csvCell(value: unknown): string {
   if (value === null || value === undefined) return '';
-  const text = String(value);
+  const raw = String(value);
+  // A rejected envelope can still contain an attacker-controlled claimed sender.
+  // Keep spreadsheets from evaluating it. JSON remains the byte-faithful evidence.
+  const text = typeof value === 'string' && /^[\t\r\n ]*[=+\-@]/.test(raw) ? "'" + raw : raw;
   return /[",\n\r]/.test(text) ? '"' + text.replaceAll('"', '""') + '"' : text;
 }
 

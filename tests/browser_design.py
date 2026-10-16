@@ -8,7 +8,7 @@ import json, os, sys
 from playwright.sync_api import sync_playwright, expect
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from _isolated_server import isolated_server
-out=Path('reports/design');out.mkdir(exist_ok=True)
+out=Path('reports/design');out.mkdir(parents=True,exist_ok=True)
 checks=[]
 with isolated_server() as base:
  checks=[]
@@ -25,6 +25,7 @@ with isolated_server() as base:
   checks.append('Authenticated but unauthorised receiver result rendered separately')
   for width in [1440,1024,768,390,320]:
    page.set_viewport_size({'width':width,'height':900})
+   page.evaluate('scrollTo(0,0)')
    page.screenshot(path=str(out/f'after-console-{width}.png'),full_page=True)
    overflow=page.evaluate('document.documentElement.scrollWidth > innerWidth')
    assert not overflow, f'Console overflow at {width}'

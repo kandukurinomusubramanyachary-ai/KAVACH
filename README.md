@@ -11,7 +11,7 @@ This is an incremental hardening of the existing application, **not a rebuild**.
 Requirements: Python 3.11+ and Node.js 20.19+. Tested environment and current results are in `docs/HARDENING_REPORT.md`.
 
 ```bash
-cd kavach
+cd KAVACH
 python -m venv .venv
 source .venv/bin/activate                 # Windows: .venv\Scripts\activate
 python -m pip install -r requirements.txt
@@ -98,35 +98,56 @@ python -m scripts.run_scenarios
 python tests/acceptance_scenario.py
 ```
 
-Latest results: pytest **228 passed, 1 skipped** · editor **12/12** · CSV **10/10** ·
-build **PASS** · scenarios **31/31** · acceptance **9/9**. The one skip is the
-release-ZIP gate, skipped by design. Browser tests are **BLOCKED** — Playwright and
-Chromium are unavailable in this environment, and a missing-browser run is never
-treated as a pass. See `docs/TEST_RESULTS.md`.
+Fresh final-stabilization results and real browser screenshots are documented in
+[`docs/FINAL_TEST_RESULTS.md`](docs/FINAL_TEST_RESULTS.md). Historical results in
+`docs/TEST_RESULTS.md` describe an earlier environment. A skipped check is not a pass.
+
+GitHub Actions runs five validation jobs for pull requests and main-branch pushes.
+Remote run status is recorded in [`docs/CI_VERIFICATION.md`](docs/CI_VERIFICATION.md);
+local command success alone does not establish successful CI.
 
 `tests/test_runtime_isolation.py` guards the live runtime database: it fails if any
 source constructs an engine on a non-isolated path or if a test fixture is not derived
 from `tmp_path`.
 
-A release-specific pytest gate is explicitly pending/skipped until the actual release ZIP exists. Build and verify the archive below, then rerun `python -m pytest tests/test_release.py -q`; the sprint's final full-discovery run includes that actual archive gate. No missing-browser run is treated as a pass.
+The real release pytest gate builds and verifies a fresh archive in a temporary
+directory on every run. It no longer depends on a pre-existing sibling ZIP.
 
-Optional real-browser checks, with the API/production build running in a **separate test data directory**:
+Real browser verification (each script starts its own disposable loopback server):
 
 ```bash
-# Terminal 1: use a new path, never reset the presenter's runtime.
-KAVACH_DATA_DIR="$HOME/kavach-qa-private" python -m backend
-# Terminal 2:
-python -m pip install playwright
-python -m playwright install chromium
-# Linux may additionally require:
-python -m playwright install-deps chromium
+python -m pip install -r requirements-browser.txt
+python -m playwright install chromium       # Linux: add --with-deps
 python tests/browser_smoke.py
 python tests/browser_hardening.py
-python preview/build_preview.py
-python preview/test_offline.py
+python tests/browser_design.py
+python tests/visual_design.py
+python tests/browser_ux.py
 ```
 
-The original baseline (56 engine/API cases, 29 runtime scenarios, 16 Chromium assertions) was reproduced before changes. Final executed commands/results, newly added regressions, warnings, blocked gates, and before/after behavior are recorded in **`docs/HARDENING_REPORT.md`** and **`reports/sprint/`**. Browser scripts return exit 2 and write BLOCKED when optional packages/binaries are unavailable; failed/blocked runs replace stale success reports rather than masquerading as old passing results.
+The optional `KAVACH_URL` override on the two legacy scripts deliberately targets a
+server you choose. Leave it unset for safe isolated tests. Missing browser dependencies
+are blocked checks, never passes.
+
+## Usability and privacy
+
+The near-black theme remains the default; the header's light-theme toggle stores only
+`kavach-theme` locally. There are no cookies, external analytics or tracking scripts.
+Search audit events by sender, message/session/event ID, explanation or rejection
+code; combine it with existing stage/time/verdict filters. CSV exports all matching
+records, including date filters; formula-like text is escaped for spreadsheet safety.
+JSON retains the original evidence. Concurrent audit changes fail the CSV operation
+with a retry message rather than silently producing an incomplete export.
+
+Header Help provides searchable security explanations and demo documentation. Use the
+skip link, keyboard mobile navigation, evidence copy controls, print layouts and
+back-to-top button on long screens. Reset and new-session confirmations explain which
+local drafts are discarded; persisted history and signing keys are preserved.
+The guide explicitly issues fresh operator fixtures and captures actual accepted and
+rejected decisions for comparison. Its final step verifies the chain and runs the suite.
+
+Applicability and test coverage for all 20 UX items:
+[`docs/FRONTEND_UX_CHECKLIST.md`](docs/FRONTEND_UX_CHECKLIST.md).
 
 ## Runtime data and recovery
 
@@ -150,9 +171,10 @@ python preview/build_preview.py
 python scripts/release.py --output ../Kavach-hardened-release.zip
 python scripts/release.py --verify ../Kavach-hardened-release.zip
 python -m pytest tests/test_release.py -q
+python scripts/verify_release.py ../Kavach-hardened-release.zip --browser
 ```
 
-The archive uses the reviewed, exact `release-files.json` allowlist. It includes source/configuration, tests, PRD/docs, licensed local assets, standalone HTML, and permitted demonstration evidence. It excludes all runtime keys/databases/journals, `.env`/credentials, dependencies, virtual environments, caches, unrelated uploads, and outer/nested workspace archives. The builder fails closed on forbidden paths, symlinks, missing files, private-key markers, or known signing-secret values, and independently inspects the finished ZIP. Per-file hashes are included in `RELEASE_MANIFEST.json`. Known-secret scanning is not a universal secret detector.
+The archive uses the reviewed, exact `release-files.json` allowlist. It includes source/configuration, tests, PRD/docs, licensed local assets, standalone HTML, and the explicitly labeled standalone browser fallback. Generated reports and recordings are excluded. It excludes all runtime keys/databases/journals, `.env`/credentials, dependencies, virtual environments, caches, unrelated uploads, and outer/nested workspace archives. The builder fails closed on forbidden paths, symlinks, missing files, private-key markers, or known signing-secret values, and independently inspects the finished ZIP. Per-file hashes are included in `RELEASE_MANIFEST.json`. Known-secret scanning is not a universal secret detector.
 
 Existing runtime data is deliberately preserved and can still exist in the workspace. **A generic workspace export is not the sanitized submission. Distribute only the validated release ZIP.** Old archives are retained for inspection and are not updated releases.
 
@@ -160,7 +182,7 @@ Existing runtime data is deliberately preserved and can still exist in the works
 
 After `python preview/build_preview.py`, open **`preview/Kavach-interactive-prototype.html`**, directly or in a compatible file viewer. It embeds all UI code, CSS, fonts, and its independent JavaScript validator; it makes no external requests. In a sandbox that blocks file downloads, exports open a selectable JSON dialog.
 
-The banner accurately labels it **browser-only**: fresh ephemeral browser keys, in-memory records, reset on reopening. It does not claim server-side secrets, SQLite persistence, the 29-case Python suite, concurrent transactions, or restart durability. Its eight browser scenarios are different from the real receiver's suite. See `preview/README.md`. A local app/browser check does not prove Arena's authenticated iframe works on a remote user's browser.
+The banner accurately labels it **browser-only**: fresh ephemeral browser keys, in-memory records, reset on reopening. It does not claim server-side secrets, SQLite persistence, the 31-case Python suite, concurrent transactions, or restart durability. Its eight browser scenarios are different from the real receiver's suite. See `preview/README.md`. A local app/browser check does not prove Arena's authenticated iframe works on a remote user's browser.
 
 ## Architecture and limitations
 
@@ -175,4 +197,4 @@ SQLite backs protected state and evidence; keys never enter UI/evidence/release.
 
 Synthetic operating bounds are not spacecraft engineering limits. HMAC is integrity/shared-key authentication, not encryption, named-human identity, or physical truth. Local model telemetry is a labeled invented snapshot (87% / 24°C). There are no accounts, public authorization, cloud controls, hardware integration, orbital accuracy, formal accessibility certification, or independent security audit.
 
-Font assets: DM Sans and IBM Plex Mono (SIL Open Font License notices in `web/public/fonts/`). Icons: lucide-react (ISC). Other dependencies retain their licenses. No new runtime dependency or microservice was added by this sprint.
+Font assets: Inter and JetBrains Mono, plus legacy DM Sans and IBM Plex Mono (SIL Open Font License notices in `web/public/fonts/`). Icons: lucide-react (ISC). Other dependencies retain their licenses. No new runtime dependency or microservice was added by this sprint.

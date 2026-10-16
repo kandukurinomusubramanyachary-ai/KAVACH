@@ -12,6 +12,7 @@ export function AuditIntegrity({report,onVerify,busy,error}:{report:AuditChainRe
  const verified=report?.status==='VERIFIED';
  return <section className="panel integrity-panel" aria-label="Audit integrity">
   <div className="panel-heading"><div className="panel-title"><Link2 size={17}/><h2>Audit integrity</h2></div><button className="btn secondary" onClick={onVerify} disabled={busy}>{busy?<RefreshCw size={13} className="spin"/>:<ShieldCheck size={13}/>} {busy?'Verifying…':'Verify chain'}</button></div>
+  <p className="integrity-covered-note">Verification traverses the global chain across all sessions. Only the listed covered fields are checked.</p>
   {error&&<p className="inline-error" role="alert">{error}</p>}
   {!report&&<div className="integrity-empty"><Link2 size={22} strokeWidth={1}/><p>Verify the hash-linked audit log to check whether any covered record was altered after commit.</p></div>}
   {report&&<>

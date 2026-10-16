@@ -480,7 +480,7 @@ class Engine:
                    (event.get('session_id'), event.get('event_id'),
                     self._chain_hash(prev, covered), prev, covered.decode('utf-8')))
 
-    def verify_audit_chain(self, session=None):
+    def verify_audit_chain(self, session=None, db=None):
         """Verify the hash-linked audit log.
 
         Detects: modification of a covered record's contents, broken links, and
@@ -488,9 +488,12 @@ class Engine:
         chain existed are reported as UNCOVERED, never silently repaired and never
         treated as failures.
         """
-        with self.connect() as db:
-            rows = db.execute('SELECT seq,session,event_id,record_hash,prev_hash,covered FROM audit_chain ORDER BY seq').fetchall()
-            audit_rows = {r[0]: r[1] for r in db.execute('SELECT id,event FROM audit').fetchall()}
+        if db is None:
+            with self.connect() as snapshot:
+                snapshot.execute('BEGIN')
+                return self.verify_audit_chain(session, db=snapshot)
+        rows = db.execute('SELECT seq,session,event_id,record_hash,prev_hash,covered FROM audit_chain ORDER BY seq').fetchall()
+        audit_rows = {r[0]: r[1] for r in db.execute('SELECT id,event FROM audit').fetchall()}
         problems, previous = [], CHAIN_GENESIS
         expected_seq = None
         for index, row in enumerate(rows):
@@ -511,14 +514,15 @@ class Engine:
                 live = self._covered(json.loads(stored))
                 if live.decode('utf-8') != covered:
                     problems.append({'kind': 'RECORD_MODIFIED', 'detail': 'The persisted audit record no longer matches its chained contents. A covered field was altered after commit.', 'link': seq})
-            if session is not None and row_session != session:
-                continue
+            # Links are global: every predecessor must advance, including other sessions.
             previous = record_hash
         covered_ids = {r[2] for r in rows}
         uncovered = [eid for eid in audit_rows if eid not in covered_ids]
         status = 'VERIFIED' if not problems else 'FAILED'
         return {
             'status': status,
+            'scope': 'global audit chain',
+            'requested_session': session,
             'links_checked': len(rows),
             'uncovered_records': len(uncovered),
             'uncovered_note': ('Records written before the audit chain existed are not covered by it. '
@@ -664,7 +668,7 @@ class Engine:
         return clean
 
     def audit(self, session=None, verdict=None, sender=None, kind=None, reason=None,
-              stage=None, since=None, until=None, limit=50, offset=0):
+              stage=None, since=None, until=None, limit=50, offset=0, search=None):
         """Filtered decision history. Supports sender, message type, verdict, reason,
         validation stage, session, and a received-at time range.
 
@@ -687,6 +691,15 @@ class Engine:
                 args.extend(STAGE_REASONS[stage])
             if since is not None: sql += ' AND received>=?'; args.append(since)
             if until is not None: sql += ' AND received<=?'; args.append(until)
+            if search:
+                # Literal, bound substring search over public audit metadata only.
+                needle = '%' + search.replace('!', '!!').replace('%', '!%').replace('_', '!_') + '%'
+                columns = ['sender', 'reason', 'session',
+                           "json_extract(event, '$.event_id')",
+                           "json_extract(event, '$.message.message_id')",
+                           "json_extract(event, '$.explanation')"]
+                sql += ' AND (' + ' OR '.join(col + " LIKE ? ESCAPE '!'" for col in columns) + ')'
+                args.extend([needle] * len(columns))
             total = db.execute('SELECT COUNT(*)'+sql,args).fetchone()[0]
             rows = db.execute('SELECT event'+sql+' ORDER BY rowid DESC LIMIT ? OFFSET ?',(*args,min(limit,200),offset)).fetchall()
             events = [json.loads(row[0]) for row in rows]
@@ -827,8 +840,9 @@ class Engine:
             snapshot = self.state(sid, db)
             events = [json.loads(r[0]) for r in db.execute('SELECT event FROM audit WHERE session=? ORDER BY rowid',(sid,))]
             suites = [json.loads(r[0]) for r in db.execute('SELECT result FROM suites WHERE session=?',(sid,))]
+            chain = self.verify_audit_chain(sid, db=db)
             db.commit()
-        return {'label':'Synthetic data — local simulation only. Not immutable or tamper-proof.','schema_version':1,'policy_version':POLICY,'exported_at':int(time.time()),'session_id':sid,'state':snapshot,'events':events,'scenario_results':suites,'audit_chain':self.verify_audit_chain(sid)}
+        return {'label':'Synthetic data — local simulation only. Not immutable or tamper-proof.','schema_version':1,'policy_version':POLICY,'exported_at':int(time.time()),'session_id':sid,'state':snapshot,'events':events,'scenario_results':suites,'audit_chain':chain}
 
     def scenarios(self, owner_session=None):
         sid, now = self.new_session(False), 1792137600

@@ -4,8 +4,8 @@ export async function api<T>(path:string, options:RequestInit={}):Promise<T> {
  try {res=await fetch('/api'+path,options);} catch {throw new Error('Local API is unavailable. Start the Python service and retry.');}
  let data:unknown;
  try {data=await res.json();} catch {throw new Error('Local API returned an unreadable response. No successful execution is assumed.');}
- const error=data as {verdict?:string;detail?:unknown};
- if(!res.ok&&error?.verdict!=='SERVICE_ERROR')throw new Error(typeof error?.detail==='string'?error.detail:'The request contains invalid fixture values.');
+ const error=data as {verdict?:string;detail?:unknown;explanation?:string};
+ if(!res.ok&&!(path.startsWith('/messages?')&&error?.verdict==='SERVICE_ERROR'))throw new Error(typeof error?.detail==='string'?error.detail:error?.explanation??'The local service could not complete this request. Retry when it is available.');
  return data as T;
 }
 export function post<T>(path:string,body?:unknown):Promise<T> {

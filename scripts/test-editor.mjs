@@ -1,14 +1,12 @@
-import {spawnSync} from 'node:child_process';
+import {build} from 'esbuild';
 import {mkdirSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 mkdirSync('.arena',{recursive:true});
-// esbuild >=0.16 ships the platform binary itself at node_modules/esbuild/bin/esbuild
-// (no JS shim), so it must be executed directly rather than handed to node.
-const compiled=spawnSync('node_modules/esbuild/bin/esbuild',['web/src/editor.ts','--format=esm','--platform=node','--outfile=.arena/editor-test.mjs'],{encoding:'utf8'});
-if(compiled.status!==0)throw Error(compiled.stderr);
+// Resolve the platform executable through esbuild's supported API.
+await build({entryPoints:['web/src/editor.ts'],format:'esm',platform:'node',outfile:'.arena/editor-test.mjs'});
 const {formatEditorJSON}=await import(pathToFileURL(path.resolve('.arena/editor-test.mjs')).href);
 for(const [name,raw] of [
  ['duplicate envelope','{"version":1,"version":2}'],

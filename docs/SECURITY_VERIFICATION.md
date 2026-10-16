@@ -163,10 +163,14 @@ explicit user action, and the issuer is not bound to an externally reachable int
 `record_hash = SHA256(prev_hash || 0x00 || canonical(covered_fields))`, genesis
 `'0'*64`, ordered by `seq`, written in the same transaction as the audit row.
 
-`CHAIN_COVERED_FIELDS` (17): `event_id`, `session_id`, `verdict`, `reason_code`,
-`explanation`, `checks`, `sender_verified`, `received_at`, `protected_state_before`,
-`protected_state_after`, `state_changed`, `telemetry_before`, `telemetry_after`,
-`policy_version`, `input_sha256`, `audit_persisted`, `replay_state_advanced`.
+`CHAIN_COVERED_FIELDS` (17), corrected against the implementation during final
+stabilization: `event_id`, `session_id`, `verdict`, `reason_code`, `sender`, `kind`,
+`received_at`, `input_sha256`, `sender_verified`, `state_changed`,
+`replay_state_advanced`, `protected_state_before`, `protected_state_after`,
+`telemetry_before`, `telemetry_after`, `checks`, `policy_version`.
+The earlier list incorrectly named `explanation` and `audit_persisted`. Those fields
+are not covered. Raw message display fields are not independently covered either;
+the input hash is covered. Do not infer whole-record attestation from VERIFIED.
 
 **What it detects:** modification of covered record contents; broken links; missing
 intermediate records.

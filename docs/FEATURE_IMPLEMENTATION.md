@@ -89,7 +89,7 @@ their own isolated session.
 | 20 | Concurrency | `backend/engine.py`, `tests/test_phase4.py` | Acceptance Test 6 | **PASS** — exactly one ACCEPTED, one transition, chain `VERIFIED` |
 | 21 | Anomaly detection | `backend/engine.py`, `MetricsDashboard.tsx` | `tests/test_phase3_backend.py` | **PASS** — 5 rules, thresholds returned |
 | 22 | Evidence filtering | `backend/engine.py`, `backend/app.py` | `tests/test_phase3_backend.py` | **PASS** — stage + time range added |
-| 23 | Signed evidence export | `backend/app.py` | `tests/test_phase4.py::TestCsvExport` | **PASS** — JSON export verifies |
+| 23 | Evidence export with chain verification (no detached signature) | `backend/app.py` | `tests/test_phase4.py::TestCsvExport` | **PASS** — JSON export verifies |
 | 24 | Deterministic reset | `backend/engine.py` | `tests/test_phase4.py::TestDeterministicReset` | **PASS** — deterministic, history and keys preserved |
 
 **Fault-injection coverage vs the roadmap list:**

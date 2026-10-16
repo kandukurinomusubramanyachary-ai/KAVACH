@@ -153,10 +153,12 @@ for rather than every possible route to the live database. Nothing prevents a de
 from manually pointing a server at `data/`.
 
 ---
-## R11 — `tests/test_release.py` skips its gate by design
+## R11 - CLOSED: release gate is mandatory
 
-One test is skipped. It is not a failure, but it does mean the release-ZIP path is not
-exercised by the automated suite.
+The final-stabilization suite builds/verifies a real temporary ZIP on every run.
+Generated reports are excluded; omitted new sources fail the allowlist completeness
+check. Clean installation/startup/security and Chromium-from-extraction are independent
+release gates. See RELEASE_VERIFICATION.md for the final artifact and commands.
 
 ---
 
@@ -180,3 +182,31 @@ They should not be read as physical telemetry.
 | Chain limits | `GET /api/audit/verify` — read `limitations[]` in the response |
 | Policy gate | `POST /api/policy/roles/VIEWER` without the env flag → 403 |
 | Metrics scope | `GET /api/metrics` — `scope` is `live session`; suite counts are under `scenario_suites` |
+
+## Current verification limits (17 October 2026)
+
+Final-stabilization evidence supersedes historical environment claims above; see
+FINAL_TEST_RESULTS.md and CI_VERIFICATION.md. Local verification uses Windows,
+Python 3.14 and Node 24. Linux CI targets Python 3.12 / Node 22. POSIX permissions
+and OS symlink creation cannot run under this Windows account; both remain mandatory
+on Linux. Archive-symlink rejection is separately exercised on every platform.
+
+The design detector reports two Inter-font warnings; retaining the incumbent Inter
+system is explicitly required by the brief. No new typeface or redesign was introduced.
+Chromium is the tested engine. Firefox/WebKit, physical devices and screen-reader
+certification remain unverified. Theme storage failure falls back to the current tab.
+
+The standalone HTML is a separate eight-case JavaScript fallback, not the full Python
+application. Backend-only panels fail with an explicit unavailable message there.
+The complete judge workflow requires the supported local Python-served build.
+
+Transitive Python dependencies use the constraints supplied by pinned direct packages;
+this work did not introduce a platform-specific freeze or uncontrolled dependency upgrade.
+Known-secret scanning does not replace an independent comprehensive secret audit.
+No tunnel, deployment or external-host exception was enabled during stabilization.
+
+Audit verification covers exactly the 17 `CHAIN_COVERED_FIELDS` published by the API.
+Explanation text, `audit_persisted` and message-display fields are not independently
+covered. The historical security report overstated that list and is corrected.
+Changing the covered set would require a versioned migration, not a silent change to
+existing chains. The tamper regression deliberately changes protected_state_after.

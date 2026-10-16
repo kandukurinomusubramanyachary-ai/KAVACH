@@ -31,7 +31,7 @@ export function ThreatPanel({scenario,result,expectation}:{scenario:ScenarioMeta
   </div>
   {result&&<div className={'threat-state '+(changedState?'changed':'')}>
    {changedState?<AlertTriangle size={13}/>:<Shield size={13}/>}
-   <span>{changedState?'Protected state changed in a committed transaction.':'Protected state unchanged. No execution committed.'}</span>
+   <span>{changedState?'Protected state changed in a committed transaction.':result.verdict==='ACCEPTED'?'Command accepted; protected state unchanged.':'Protected state unchanged. No execution committed.'}</span>
   </div>}
   {result&&expectation&&<p className="threat-match">{expectation===result.reason_code
    ?<><CheckCircle2 size={12}/>Fixture expectation matched the observed receiver decision.</>

@@ -72,9 +72,10 @@
   --ink:#f7f8f8;
   --ink-muted:#d0d6e0;
   --ink-subtle:#8a8f98;
-  --ink-tertiary:#62666d;
+  --ink-tertiary:#9499a3;
 
   /* ---- semantic (see deviation note above) ---- */
+  --success-ink:#5ec269; --danger-ink:#f2777b; --warning-ink:#f0c14b; --accent-ink:#9aa3ec; --string-ink:#7fd1a8;
   --success:#27a644;
   --danger:#e5484d;
   --warn:#f0b429;
@@ -146,3 +147,17 @@ svg{flex-shrink:0}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--hairline-strong);border-radius:var(--r-pill);border:3px solid var(--canvas)}
 ::-webkit-scrollbar-thumb:hover{background:#3d4149}
+
+/* Optional reading theme; the near-black mission theme remains the default. */
+:root[data-theme="light"]{
+ color-scheme:light;
+ --canvas:#f6f7fb; --surface-1:#ffffff; --surface-2:#eef0f6;
+ --surface-3:#e7eaf2; --surface-4:#dce1ec;
+ --hairline:#cbd1dd; --hairline-strong:#a4adbf; --hairline-tertiary:#dce0e9;
+ --ink:#151b2d; --ink-muted:#333e55; --ink-subtle:#505d73; --ink-tertiary:#59647a;
+ --primary:#4e59b8; --primary-hover:#3d4695; --primary-focus:#4e59b8;
+ --brand-secure:#505b93;
+ --success:#167236; --danger:#b32631; --warn:#835900;
+ --success-ink:#14632e; --danger-ink:#a81d2c; --warning-ink:#714c00;
+ --accent-ink:#414d9f; --string-ink:#14632e;
+}

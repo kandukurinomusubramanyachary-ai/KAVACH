@@ -4,6 +4,7 @@ def main():
     from pathlib import Path
     from playwright.sync_api import sync_playwright,expect
     root=Path(__file__).resolve().parents[1]
+    (root/'reports/sprint').mkdir(parents=True,exist_ok=True)
     import sys
     sys.path.insert(0,str(root));sys.path.insert(0,str(Path(__file__).resolve().parent))
     from _isolated_server import isolated_server
@@ -95,7 +96,7 @@ def main():
         expect(page.get_by_role('dialog')).to_have_count(0)
         record('Keyboard Enter opens help and Escape closes it')
         page.get_by_role('button',name='Audit',exact=True).click()
-        page.get_by_label('Filter by exact reason code').fill('NOT_AUTHORISED')
+        page.get_by_label('Search audit events').fill('NOT_AUTHORISED')
         expect(page.locator('.audit-table tbody tr')).to_have_count(1)
         page.locator('.audit-table tbody tr').focus();page.keyboard.press('Enter')
         expect(page.get_by_role('dialog')).to_contain_text('NOT_AUTHORISED');page.keyboard.press('Escape')
@@ -118,6 +119,7 @@ if __name__=='__main__':
         from pathlib import Path
         blocked=isinstance(exc,ModuleNotFoundError) and str(getattr(exc,'name','')).startswith('playwright') or "Executable doesn't exist" in str(exc) or 'error while loading shared libraries' in str(exc)
         status='BLOCKED' if blocked else 'FAIL'
+        (Path(__file__).resolve().parents[1]/'reports/sprint').mkdir(parents=True,exist_ok=True)
         (Path(__file__).resolve().parents[1]/'reports/sprint/browser-hardening.json').write_text(json.dumps({'status':status,'passed':0,'reason':'Optional browser dependency unavailable' if blocked else type(exc).__name__,'executed_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())},indent=2))
         print(status+': '+('Install Playwright, Chromium, and required OS libraries.' if blocked else 'Browser regression assertion failed.'))
         if blocked:raise SystemExit(2)

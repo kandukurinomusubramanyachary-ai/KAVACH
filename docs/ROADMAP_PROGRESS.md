@@ -113,7 +113,7 @@ Commit `017e792` (backend) and `078314b` (UI).
 | 20. Concurrency | Real HTTP concurrency tests (2- and 3-way) plus in-process ones. | `tests/test_phase4.py` |
 | 21. Telemetry anomaly detection | Five **rule-based** rules (no ML): `OUT_OF_RANGE`, `SUDDEN_BATTERY_DROP`, `SUDDEN_TEMPERATURE_JUMP`, `MODE_WITHOUT_COMMAND`, `STALE_REPORT`. Every finding carries the verdict and reason code of the accepted record it came from, so an anomaly is never reported as an authentication/authorisation failure. | `backend/engine.py`, `web/src/components/MetricsDashboard.tsx` |
 | 22. Evidence filtering | `stage`, `since`, `until` added to `session`, `verdict`, `sender`, `message_type`, `reason`. `STAGE_REASONS`/`REASON_STAGE` map stages to deterministic reason sets so pagination stays accurate. | `backend/engine.py`, `backend/app.py` |
-| 23. Signed evidence export | `/api/export` emits decisions + audit-chain verification. | `backend/app.py` |
+| 23. Evidence export with chain verification (no detached signature) | `/api/export` emits decisions + audit-chain verification. | `backend/app.py` |
 | 24. Deterministic reset | `reset_demo()`; no session, record, chain link, or key is deleted or rotated. | `backend/engine.py` |
 
 Three defects were caught during this phase:

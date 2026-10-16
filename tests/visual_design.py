@@ -17,8 +17,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-PORT = int(os.environ.get('KAVACH_VISUAL_PORT', '8031'))
-BASE = f'http://127.0.0.1:{PORT}'
+sys.path.insert(0, str(ROOT/'tests'))
+from _isolated_server import isolated_server
 OUT = ROOT / 'reports' / 'design'
 OUT.mkdir(parents=True, exist_ok=True)
 PAGES = [
@@ -40,74 +40,52 @@ def record(name, passed, detail=''):
 
 def main():
     from playwright.sync_api import sync_playwright
-    with tempfile.TemporaryDirectory(prefix='kavach-visual-') as directory:
-        server = subprocess.Popen(
-            [sys.executable, '-m', 'backend', '--port', str(PORT)],
-            cwd=ROOT, env=dict(os.environ, KAVACH_DATA_DIR=directory),
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        try:
-            for _ in range(80):
-                try:
-                    with urllib.request.urlopen(BASE + '/api/health', timeout=5) as r:
-                        if json.load(r).get('status') == 'online':
-                            break
-                except Exception:
-                    pass
-                time.sleep(0.25)
-            else:
-                print('BLOCKED: server did not become healthy.')
-                return 2
-
-            with sync_playwright() as p:
-                browser = p.chromium.launch(args=['--no-sandbox', '--force-color-profile=srgb'])
-                errors = []
-                for width, label in [(1440, 'desktop'), (820, 'tablet'), (480, 'mobile')]:
-                    context = browser.new_context(viewport={'width': width, 'height': 1000},
-                                                  device_scale_factor=2)
-                    page = context.new_page()
-                    page.on('pageerror', lambda e: errors.append(str(e)))
-                    page.goto(BASE, wait_until='networkidle')
-                    page.wait_for_timeout(700)
-                    seed_activity(page)
-
-                    for slug, title in PAGES:
-                        navigate(page, title, 450)
-                        page.screenshot(path=str(OUT / f'{slug}-{label}.png'), full_page=True)
-
-                    # Drive a real decision so the result surfaces are populated.
-                    navigate(page, 'Demo', 350)
-                    try:
-                        page.click('.demo-actions button:has-text("Generate")', timeout=5000)
-                        page.wait_for_timeout(500)
-                        # The submit control lives on the Mission Console.
-                        navigate(page, 'Console', 350)
-                        page.click('.submit-btn', timeout=5000)
-                        page.wait_for_timeout(1000)
-                        page.screenshot(path=str(OUT / f'decision-{label}.png'), full_page=True)
-                    except Exception as exc:
-                        record(f'Drive a real decision ({label})', False, str(exc)[:90])
-                    context.close()
-
-                # ---- responsive behaviour at every breakpoint ----
-                assert_responsive(browser)
-
-                # ---- token assertions on the real rendered page ----
-                context = browser.new_context(viewport={'width': 1440, 'height': 1000})
+    with isolated_server() as base:
+        global BASE
+        BASE = base
+        with sync_playwright() as p:
+            browser = p.chromium.launch(args=['--no-sandbox', '--force-color-profile=srgb'])
+            errors = []
+            for width, label in [(1440, 'desktop'), (820, 'tablet'), (480, 'mobile')]:
+                context = browser.new_context(viewport={'width': width, 'height': 1000},
+                                              device_scale_factor=2)
                 page = context.new_page()
+                page.on('pageerror', lambda e: errors.append(str(e)))
                 page.goto(BASE, wait_until='networkidle')
-                page.wait_for_timeout(600)
-                assert_tokens(page)
+                page.wait_for_timeout(700)
+                seed_activity(page)
+
+                for slug, title in PAGES:
+                    navigate(page, title, 450)
+                    page.screenshot(path=str(OUT / f'{slug}-{label}.png'), full_page=True)
+
+                # Drive a real decision so the result surfaces are populated.
+                navigate(page, 'Demo', 350)
+                try:
+                    page.click('.demo-actions button:has-text("Generate")', timeout=5000)
+                    page.wait_for_timeout(500)
+                    # The submit control lives on the Mission Console.
+                    navigate(page, 'Console', 350)
+                    page.click('.submit-btn', timeout=5000)
+                    page.wait_for_timeout(1000)
+                    page.screenshot(path=str(OUT / f'decision-{label}.png'), full_page=True)
+                except Exception as exc:
+                    record(f'Drive a real decision ({label})', False, str(exc)[:90])
                 context.close()
 
-                record('No uncaught page errors', not errors, '; '.join(errors[:3])[:160])
-                browser.close()
-        finally:
-            server.terminate()
-            try:
-                server.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                server.kill()
+            # ---- responsive behaviour at every breakpoint ----
+            assert_responsive(browser)
 
+            # ---- token assertions on the real rendered page ----
+            context = browser.new_context(viewport={'width': 1440, 'height': 1000})
+            page = context.new_page()
+            page.goto(BASE, wait_until='networkidle')
+            page.wait_for_timeout(600)
+            assert_tokens(page)
+            context.close()
+
+            record('No uncaught page errors', not errors, '; '.join(errors[:3])[:160])
+            browser.close()
     width = max(len(r['name']) for r in RESULTS)
     print(f"\n{'CHECK':<{width}}  RESULT  DETAIL")
     print('-' * (width + 26))
@@ -132,32 +110,21 @@ def navigate(page, title, wait=400):
     page.wait_for_timeout(wait)
 
 def seed_activity(page):
-    """Drive real decisions so the metrics, comparison and audit pages carry data."""
-    for scenario, button in [('valid', 'Tamper'), ('tampered', 'Tamper'),
-                             ('unauthorised', 'Unauthorised'), ('telemetry', 'Telemetry fixture')]:
-        try:
-            navigate(page, 'Console', 250)
-            page.click(f'.quick-actions button:has-text("{button}")')
-            page.wait_for_timeout(300)
-            page.click('.submit-btn')
-            page.wait_for_timeout(700)
-        except Exception:
-            pass
-    # capture one side of the comparison
-    try:
-        page.click('.quick-actions button:has-text("Capture normal")')
-        page.wait_for_timeout(250)
-    except Exception:
-        pass
-    try:
-        page.click('.quick-actions button:has-text("Tamper")')
-        page.wait_for_timeout(300)
-        page.click('.submit-btn')
-        page.wait_for_timeout(700)
-        page.click('.quick-actions button:has-text("Capture attack")')
-        page.wait_for_timeout(250)
-    except Exception:
-        pass
+    """Populate screenshots with asserted real responses; failures cannot be swallowed."""
+    from playwright.sync_api import expect
+    for button, expected in [('Generate fresh signed sample','OK'),('Tamper','AUTH_FAILED'),
+                             ('Unauthorised','NOT_AUTHORISED'),('Telemetry fixture','OK')]:
+        navigate(page,'Console',0)
+        page.get_by_role('button',name=button,exact=True).click()
+        expect(page.locator('.submit-btn')).to_be_enabled()
+        with page.expect_response(lambda r:'/api/messages?' in r.url and r.request.method=='POST') as response:
+            page.locator('.submit-btn').click()
+        result=response.value.json()
+        assert result['reason_code']==expected, result
+        if button=='Generate fresh signed sample':
+            page.get_by_role('button',name='Capture normal',exact=True).click()
+        if button=='Tamper':
+            page.get_by_role('button',name='Capture attack',exact=True).click()
 
 
 def assert_responsive(browser):
@@ -259,6 +226,7 @@ def assert_tokens(page):
       const cs = getComputedStyle(b);
       return {bg: cs.backgroundColor, border: cs.borderTopColor, text: b.textContent.slice(0,60)};
     }""")
+    record('Rejected verdict banner exists', verdict is not None)
     if verdict:
         record('Rejected verdict uses danger tint', 'rgba(229, 72, 77' in verdict['bg'],
                f"{verdict['bg']} / {verdict['text'].strip()[:34]}")
