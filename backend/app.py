@@ -7,7 +7,7 @@ import sqlite3
 import threading
 from typing import Literal
 from urllib.parse import urlsplit
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -235,7 +235,7 @@ async def receive(request: Request, session_id: str | None = None):
     return JSONResponse(result,status_code=503 if result['verdict']=='SERVICE_ERROR' else 200)
 
 @app.get('/api/audit')
-def audit(session_id: str | None = None, verdict: str | None = None, sender: str | None = None, message_type: str | None = None, reason: str | None = None, stage: str | None = None, since: int | None = None, until: int | None = None, limit: int = 50, offset: int = 0):
+def audit(session_id: str | None = None, verdict: str | None = None, sender: str | None = None, message_type: str | None = None, reason: str | None = None, stage: str | None = None, since: int | None = None, until: int | None = None, limit: int = 50, offset: int = 0, q: str | None = Query(default=None, max_length=160)):
     receiver=get_engine();ensure_session(receiver,session_id)
     # Validate request parameters explicitly. Storage/parse failures must NOT be
     # caught here: they propagate to the ValueError handler and surface as a bounded
@@ -245,7 +245,7 @@ def audit(session_id: str | None = None, verdict: str | None = None, sender: str
     for name,value in [('since',since),('until',until)]:
         if value is not None and (not isinstance(value,int) or isinstance(value,bool)):
             raise HTTPException(400,f'{name} must be an integer Unix timestamp.')
-    return receiver.audit(session_id,verdict,sender,message_type,reason,stage,since,until,max(1,min(limit,200)),max(0,offset))
+    return receiver.audit(session_id,verdict,sender,message_type,reason,stage,since,until,max(1,min(limit,200)),max(0,offset),search=q)
 
 class RolePolicy(BaseModel):
     model_config = ConfigDict(extra='forbid',strict=True)

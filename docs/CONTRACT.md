@@ -220,3 +220,17 @@ responses.
 - Anomaly findings are never rendered as authentication or authorisation failures.
 - Live counters and suite statistics are displayed separately.
 - The chain's limitations are displayed, and the words "tamper-proof" are never used.
+
+## Final stabilization read API extension
+
+`GET /api/audit?q=...` optionally performs a bound, literal substring search (maximum
+160 characters) over sender, reason, session, event ID, message ID and explanation.
+SQL wildcard characters are treated literally. Existing exact reason and all other
+filters still combine with it; counts and pagination use the same predicate. No
+receiver, signing, replay or transaction behavior changes.
+
+Audit chain links span all sessions. Verification always traverses every global link,
+including when requested by a session export; `scope: global audit chain` and
+`requested_session` make that explicit. Export verifies it within the same read-only
+SQLite snapshot as the exported state/events/suites. It detects covered-field tampering
+in other sessions too; it remains a local consistency check, not proof of origin.

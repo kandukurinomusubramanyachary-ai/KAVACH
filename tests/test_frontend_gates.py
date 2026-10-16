@@ -1,10 +1,6 @@
-"""Regression coverage for repository verification gates.
-
-DEFECT-01: `npm run test:editor` used to spawn the esbuild *native ELF binary*
-through `process.execPath`, so node tried to parse machine code as JavaScript and
-the documented frontend gate crashed for every user. These tests execute the real
-gate and assert the invocation shape so the defect cannot silently return.
-"""
+"""Run the real editor/CSV gates across supported Node and OS layouts.
+Use esbuild's public API and explicit TAP so Windows executable paths and
+Node's default reporter cannot invalidate the verification harness."""
 import json
 import re
 import shutil
@@ -15,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 EDITOR_GATE = ROOT / 'scripts' / 'test-editor.mjs'
-ESBUILD_BIN = ROOT / 'node_modules' / 'esbuild' / 'bin' / 'esbuild'
+ESBUILD_API = ROOT / 'node_modules' / 'esbuild' / 'lib' / 'main.js'
 
 
 def _node_available() -> bool:
@@ -23,12 +19,12 @@ def _node_available() -> bool:
 
 
 @pytest.mark.skipif(not _node_available(), reason='Node.js is not installed in this environment.')
-@pytest.mark.skipif(not ESBUILD_BIN.exists(), reason='node_modules is not installed; run npm ci first.')
+@pytest.mark.skipif(not ESBUILD_API.exists(), reason='node_modules is not installed; run npm ci first.')
 class TestEditorGate:
     def test_editor_gate_passes(self):
         """The documented frontend gate must actually run and pass."""
         completed = subprocess.run(
-            ['node', str(EDITOR_GATE)],
+            ['node', '--test-reporter=tap', str(EDITOR_GATE)],
             cwd=ROOT, capture_output=True, text=True, timeout=180,
         )
         assert completed.returncode == 0, (
@@ -39,26 +35,21 @@ class TestEditorGate:
         assert summary.get('fail') == '0', f'Editor gate reported failures: {summary}'
         assert int(summary.get('pass', 0)) > 0, f'Editor gate ran no tests: {summary}'
 
-    def test_esbuild_binary_is_not_handed_to_node(self):
-        """Guard the root cause: the esbuild binary must be executed, not parsed by node."""
-        source = EDITOR_GATE.read_text(encoding='utf-8')
-        # The esbuild binary is a native executable; passing process.execPath as the
-        # command makes node try to parse it as JavaScript.
-        assert 'process.execPath' not in source, (
-            'test-editor.mjs must not use process.execPath to launch esbuild; '
-            'node_modules/esbuild/bin/esbuild is a native binary since esbuild 0.16.'
-        )
-        assert 'esbuild/bin/esbuild' in source, 'Expected the esbuild binary to be invoked directly.'
+    def test_gates_resolve_esbuild_via_supported_api(self):
+        for name in ['test-editor.mjs', 'test-csv.mjs']:
+            source = (ROOT / 'scripts' / name).read_text(encoding='utf-8')
+            assert "from 'esbuild'" in source
+            assert 'await build(' in source
+            assert 'spawnSync' not in source
 
-    def test_esbuild_binary_is_native_not_a_shim(self):
-        """Confirm the assumption the fix relies on, so a future layout change is caught."""
-        if not ESBUILD_BIN.exists():
-            pytest.skip('node_modules is not installed.')
-        magic = ESBUILD_BIN.read_bytes()[:4]
-        assert magic == b'\x7fELF', (
-            'esbuild/bin/esbuild is no longer a native ELF binary. Revisit the invocation '
-            'in scripts/test-editor.mjs before assuming the direct-exec fix still applies.'
-        )
+    def test_csv_gate_passes(self):
+        completed = subprocess.run(
+            ['node', '--test-reporter=tap', 'scripts/test-csv.mjs'], cwd=ROOT,
+            capture_output=True, text=True, timeout=180)
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+        summary = dict(re.findall(r'^# (pass|fail|tests) (\d+)$', completed.stdout, re.M))
+        assert summary.get('fail') == '0'
+        assert int(summary.get('pass', 0)) > 0
 
 
 @pytest.mark.skipif(not _node_available(), reason='Node.js is not installed in this environment.')
@@ -73,3 +64,19 @@ class TestPackageGate:
         """The gate must compile web/src/editor.ts, not a stale copy."""
         source = EDITOR_GATE.read_text(encoding='utf-8')
         assert 'web/src/editor.ts' in source, 'Editor gate must compile the real editor source.'
+
+
+@pytest.mark.skipif(not _node_available() or not ESBUILD_API.exists(),reason='Install Node and npm ci for renderer gate.')
+def test_timeline_renders_real_service_failure_without_acceptance_claim(tmp_path,monkeypatch):
+    import sqlite3
+    from backend.engine import Engine
+    receiver=Engine(tmp_path)
+    raw=json.dumps(receiver.issue(payload={'mode':'SAFE'})).encode()
+    def unavailable():
+        raise sqlite3.OperationalError('synthetic storage outage')
+    monkeypatch.setattr(receiver,'connect',unavailable)
+    result=receiver.validate(raw)
+    assert result['verdict']=='SERVICE_ERROR' and not result['audit_persisted']
+    rendered=subprocess.run(['node','scripts/test-render.mjs'],input=json.dumps(result),cwd=ROOT,
+                            capture_output=True,text=True,timeout=180)
+    assert rendered.returncode==0,rendered.stdout+rendered.stderr

@@ -22,15 +22,46 @@ FORBIDDEN_SUFFIXES = ('.sqlite','.sqlite3','.db','.db-journal','.sqlite3-journal
 class ReleaseError(ValueError):
     pass
 
+WINDOWS_RESERVED_NAMES = {'CON','PRN','AUX','NUL'} | {f'COM{i}' for i in range(1,10)} | {f'LPT{i}' for i in range(1,10)}
+
+
 def safe_path(name: str) -> bool:
     p = PurePosixPath(name)
-    return bool(name) and not p.is_absolute() and '\\' not in name and all(x not in ('','..','.') for x in name.split('/')) and not any(x.lower() in FORBIDDEN_PARTS or x.lower().startswith('.env') or x.lower() in {'sender-secrets.json','.netrc','.git-credentials','.npmrc','.pypirc','id_rsa','id_ed25519'} for x in p.parts) and not name.lower().endswith(FORBIDDEN_SUFFIXES)
+    if not name or p.is_absolute() or any(c in name for c in ':\\') or any(ord(c)<32 for c in name):
+        return False
+    for part in name.split('/'):
+        lower = part.lower()
+        if part in ('','..','.') or part.endswith((' ','.')) or part.split('.')[0].upper() in WINDOWS_RESERVED_NAMES:
+            return False
+        if lower in FORBIDDEN_PARTS or lower.startswith('.env') or lower in {
+            'sender-secrets.json','.netrc','.git-credentials','.npmrc','.pypirc','id_rsa','id_ed25519',
+        }:
+            return False
+    return not name.lower().endswith(FORBIDDEN_SUFFIXES)
 
 def load_allowlist(root: Path) -> list[str]:
     data = json.loads((root/'release-files.json').read_text())
     files = data['files']
     if not isinstance(files,list) or len(files)!=len(set(files)) or not all(isinstance(n,str) and safe_path(n) and n!=MANIFEST for n in files):
         raise ReleaseError('Invalid or forbidden release allowlist path.')
+    # Discovery is a gate, never an automatic addition to the reviewed allowlist.
+    # It prevents new app modules, assets, tests and docs being silently omitted.
+    required = set()
+    for directory, suffixes in {
+        'backend': {'.py'}, 'web/src': {'.ts', '.tsx', '.css'},
+        'web/public': None, 'scripts': {'.py', '.mjs'},
+        'tests': {'.py'}, 'docs': {'.md'}, '.github/workflows': {'.yml', '.yaml'},
+    }.items():
+        for path in (root/directory).rglob('*'):
+            if '__pycache__' in path.parts:
+                continue
+            if path.is_file() and (suffixes is None or path.suffix in suffixes):
+                required.add(path.relative_to(root).as_posix())
+    missing = required - set(files)
+    if missing:
+        raise ReleaseError('Required sources omitted from release allowlist: ' + ', '.join(sorted(missing)))
+    if any(n.lower().startswith('reports/') for n in files):
+        raise ReleaseError('Generated reports must not enter a source release.')
     return sorted(files)
 
 def secret_patterns(secret_files: list[Path]) -> list[bytes]:

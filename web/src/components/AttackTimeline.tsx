@@ -26,11 +26,11 @@ const NODES=[
 export function AttackTimeline({result}:{result:Decision|null}){
  if(!result)return <div className="timeline-empty"><CircleDot size={15}/><p>Submit a message to walk the receiver's ordered checks.</p></div>;
  const checks=result.checks??[];
- const statusFor=(key:string):'PASS'|'FAIL'|'NOT_RUN'|'PENDING'=>key==='received'?'PASS':key==='audit'?(result.event_id?'PASS':'NOT_RUN'):(checks.find(c=>c.stage===key)?.status as 'PASS'|'FAIL'|'NOT_RUN')??'NOT_RUN';
+ const statusFor=(key:string):'PASS'|'FAIL'|'NOT_RUN'|'PENDING'=>key==='received'?'PASS':key==='audit'?(result.audit_persisted===true?'PASS':'NOT_RUN'):(checks.find(c=>c.stage===key)?.status as 'PASS'|'FAIL'|'NOT_RUN')??'NOT_RUN';
  const passed=checks.filter(c=>c.status==='PASS').length;
  const rejected=result.verdict==='REJECTED';
  return <section className="panel timeline-panel" aria-label="Attack replay timeline">
-  <div className="panel-heading"><div className="panel-title"><FileText size={17}/><h2>Attack replay timeline</h2></div><span className="workstation-label">{rejected?'Rejected':'Accepted'}</span></div>
+  <div className="panel-heading"><div className="panel-title"><FileText size={17}/><h2>Attack replay timeline</h2></div><span className="workstation-label">{result.verdict==='ACCEPTED'?'Accepted':rejected?'Rejected':'Service unavailable'}</span></div>
   <p className="timeline-note">Logical order only. The receiver does not time individual stages, so no per-stage duration is shown. Stages that never ran read NOT RUN, not PASS.</p>
   <ol className="timeline">
    {NODES.map((node,index)=>{
@@ -50,7 +50,7 @@ export function AttackTimeline({result}:{result:Decision|null}){
   </ol>
   <div className="timeline-summary">
    <div><span>STAGES PASSED</span><strong>{passed} / 8</strong></div>
-   <div><span>FIRST FAILURE</span><strong>{rejected?(checks.find(c=>c.status==='FAIL')?.label??'—'):'None'}</strong></div>
+   <div><span>FIRST FAILURE</span><strong>{checks.find(c=>c.status==='FAIL')?.label??'None'}</strong></div>
    <div><span>END-TO-END</span><strong>{result.duration_ms!=null?`${result.duration_ms} ms`:'Unavailable'}</strong></div>
    <div><span>VERDICT</span><strong className={result.verdict==='ACCEPTED'?'green':'red'}>{result.verdict}</strong></div>
   </div>

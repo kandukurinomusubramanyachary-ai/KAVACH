@@ -20,7 +20,8 @@ export const DEMO_STEPS:DemoStep[]=[
  * presses Generate and Submit. Nothing is submitted silently, and no authentication,
  * authorisation, or freshness check is bypassed to make a step succeed.
  */
-export function GuidedDemo({index,result,onNavigate,onRunStep,busy,expected}:{
+export function GuidedDemo({index,result,onNavigate,onRunStep,busy,expected,completed,onOpenCompare,onOpenEvidence,onSuite,onVerify,chainStatus,suiteResult}:{
+ completed:string[];onOpenCompare:()=>void;onOpenEvidence:()=>void;onSuite:()=>void;onVerify:()=>void;chainStatus:string|null;suiteResult:string|null;
  index:number;result:Decision|null;onNavigate:(i:number)=>void;onRunStep:(s:DemoStep)=>void;busy:string;expected:string|null;
 }){
  const step=DEMO_STEPS[index];
@@ -30,19 +31,20 @@ export function GuidedDemo({index,result,onNavigate,onRunStep,busy,expected}:{
  return <section className="panel demo-panel" aria-label="Guided demo">
   <div className="panel-heading"><div className="panel-title"><Play size={17}/><h2>Guided demo</h2></div><span className="workstation-label">Step {index+1} of {DEMO_STEPS.length}</span></div>
   <ol className="demo-steps">
-   {DEMO_STEPS.map((s,i)=><li key={s.id} className={i===index?'current':i<index?'done':''}><button onClick={()=>onNavigate(i)}><span className="demo-step-index">{i<index?<CheckCircle2 size={12}/>:i+1}</span><span>{s.title}</span></button></li>)}
+   {DEMO_STEPS.map((s,i)=><li key={s.id} className={(i===index?'current ':'')+(completed.includes(s.id)?'done':'')}><button onClick={()=>onNavigate(i)}><span className="demo-step-index">{completed.includes(s.id)?<CheckCircle2 size={12}/>:i+1}</span><span>{s.title}</span></button></li>)}
   </ol>
   <div className="demo-body">
    <h3>{icons[step.id]}{step.title}</h3>
    <p className="demo-goal">{step.goal}</p>
    <div className="demo-actions">
+   {step.id==='compare'?<button className="btn primary" onClick={onOpenCompare}>Open captured comparison<ChevronRight size={14}/></button>:step.id==='evidence'?<><button className="btn secondary" disabled={!!busy} onClick={onVerify}>Verify audit chain</button><button className="btn secondary" disabled={!!busy} onClick={onSuite}>{busy==='suite'?'Running suite?':'Run security suite'}</button><button className="btn secondary" onClick={onOpenEvidence}>Open audit evidence</button></>:<>
     <button className="btn secondary" onClick={()=>onRunStep(step)} disabled={!!busy}>{busy==='generate'?<RotateCcw size={14} className="spin"/>:<Play size={14}/>} Generate {step.title.toLowerCase()} fixture</button>
-    <span className="demo-hint">Then press <strong>Submit for validation</strong> in the message builder. Nothing is submitted for you.</span>
+    <span className="demo-hint">The console opens with your fixture. Press <strong>Submit for validation</strong> in the message builder. Nothing is submitted for you.</span></>}
    </div>
    <div className="demo-expect">
     <div><span>WHAT TO WATCH</span><p>{step.watch}</p></div>
-    <div><span>FIXTURE EXPECTATION</span><p><code>{expected??'Generate a fixture to see the preset expectation'}</code></p></div>
-    <div><span>OBSERVED</span><p>{observed?<code className={result?.verdict==='ACCEPTED'?'green':'red'}>{observed}</code>:<em>Not submitted yet</em>}</p></div>
+    <div><span>FIXTURE EXPECTATION</span><p><code>{expected??(step.id==='compare'||step.id==='evidence'?'Inspect real records; no fixture required':'Generate a fixture to see the preset expectation')}</code></p></div>
+    <div><span>OBSERVED</span><p>{step.id==='evidence'?<span>Chain: {chainStatus??'not verified'} ? Suite: {suiteResult??'not run'}</span>:step.id==='compare'?<span>{completed.includes('compare')?'Both actual decisions captured. Open comparison.':'Accept a valid command and reject an attack first.'}</span>:observed?<code className={result?.verdict==='ACCEPTED'?'green':'red'}>{observed}</code>:<em>Not submitted yet</em>}</p></div>
    </div>
    {observed&&<p className="demo-note">The observed value comes from the Python receiver. If it differs from the preset expectation, the receiver is authoritative.</p>}
   </div>
